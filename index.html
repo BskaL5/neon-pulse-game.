@@ -1,0 +1,907 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+  <title>Neon Pulse - Synthwave Rhythm Runner</title>
+  
+  <script src="https://cdn.tailwindcss.com"></script>
+  <link href="https://fonts.googleapis.com/css2?family=Orbitron:wght@400;700;900&family=Rajdhani:wght@500;700;900&display=swap" rel="stylesheet">
+  <style>
+    * {
+      user-select: none;
+      -webkit-user-select: none;
+      touch-action: manipulation;
+    }
+    body {
+      font-family: 'Orbitron', sans-serif;
+      background-color: #030108;
+      overflow: hidden;
+      margin: 0;
+      padding: 0;
+      height: 100vh;
+      width: 100vw;
+    }
+    .font-rajdhani {
+      font-family: 'Rajdhani', sans-serif;
+    }
+    .neon-text-cyan {
+      text-shadow: 0 0 8px #00f0ff, 0 0 20px #00f0ff, 0 0 30px #00f0ff;
+    }
+    .neon-text-pink {
+      text-shadow: 0 0 8px #ff007f, 0 0 20px #ff007f, 0 0 30px #ff007f;
+    }
+    .neon-text-green {
+      text-shadow: 0 0 8px #39ff14, 0 0 20px #39ff14, 0 0 30px #39ff14;
+    }
+    .neon-text-yellow {
+      text-shadow: 0 0 8px #facc15, 0 0 20px #facc15;
+    }
+    .neon-box-cyan {
+      box-shadow: 0 0 15px rgba(0, 240, 255, 0.4), inset 0 0 15px rgba(0, 240, 255, 0.15);
+      border: 1px solid #00f0ff;
+    }
+    .neon-box-pink {
+      box-shadow: 0 0 15px rgba(255, 0, 127, 0.4), inset 0 0 15px rgba(255, 0, 127, 0.15);
+      border: 1px solid #ff007f;
+    }
+    .scanlines {
+      background: linear-gradient(
+        to bottom,
+        rgba(255,255,255,0),
+        rgba(255,255,255,0) 50%,
+        rgba(0, 0, 0, 0.35) 50%,
+        rgba(0, 0, 0, 0.35)
+      );
+      background-size: 100% 4px;
+    }
+    @keyframes pulseGlow {
+      0%, 100% { opacity: 0.85; transform: scale(1); }
+      50% { opacity: 1; transform: scale(1.02); }
+    }
+    .animate-pulse-glow {
+      animation: pulseGlow 2s infinite ease-in-out;
+    }
+    @keyframes levelPop {
+      0% { transform: scale(0.5); opacity: 0; }
+      50% { transform: scale(1.2); opacity: 1; }
+      100% { transform: scale(1); opacity: 0; }
+    }
+    .animate-level-up {
+      animation: levelPop 1.8s forwards ease-out;
+    }
+  </style>
+</head>
+<body class="relative flex items-center justify-center min-h-screen text-white select-none">
+
+  <div class="pointer-events-none absolute inset-0 scanlines z-20 opacity-70"></div>
+
+  <div id="game-container" class="relative w-full h-full max-w-5xl max-h-[920px] overflow-hidden bg-black md:rounded-2xl border-0 md:border-2 border-cyan-500/40 shadow-[0_0_50px_rgba(0,240,255,0.2)] flex flex-col">
+    
+    <canvas id="gameCanvas" class="w-full h-full block bg-black z-0"></canvas>
+
+    <!-- Level Up Floating Overlay -->
+    <div id="levelUpBanner" class="hidden pointer-events-none absolute inset-0 z-30 flex flex-col items-center justify-center">
+      <div id="levelUpText" class="text-5xl md:text-7xl font-black italic tracking-widest text-transparent bg-clip-text bg-gradient-to-r from-yellow-300 via-pink-500 to-cyan-400 animate-level-up drop-shadow-[0_0_25px_rgba(255,0,127,0.8)]">
+        LEVEL UP!
+      </div>
+      <div id="levelUpSubtext" class="text-sm md:text-xl font-bold tracking-widest text-yellow-300 mt-2 font-rajdhani">
+        ENTERED STAGE 2
+      </div>
+    </div>
+
+    <!-- HUD -->
+    <div id="hud" class="hidden absolute top-0 left-0 right-0 p-4 z-10 flex flex-col gap-2 pointer-events-none">
+      <div class="w-full bg-gray-900/80 border border-cyan-500/40 rounded-full h-4 p-0.5 relative overflow-hidden backdrop-blur-sm">
+        <div id="levelProgressBar" class="bg-gradient-to-r from-cyan-500 via-pink-500 to-yellow-400 h-full rounded-full w-0 transition-all duration-200"></div>
+        <div class="absolute inset-0 flex items-center justify-center text-[10px] font-black tracking-widest text-white drop-shadow">
+          LEVEL <span id="hudLevelNum">1</span> / 15 • <span id="hudLevelDistText">0 / 300 m</span>
+        </div>
+      </div>
+
+      <div class="flex justify-between items-start">
+        <div class="flex flex-col gap-1">
+          <div class="text-[10px] text-cyan-400 tracking-widest font-rajdhani font-bold">SCORE</div>
+          <div id="scoreText" class="text-2xl md:text-4xl font-black neon-text-cyan">000000</div>
+          <div class="flex items-center gap-2 mt-1">
+            <div id="comboBadge" class="px-2.5 py-0.5 rounded bg-pink-600/90 text-white font-black text-xs tracking-wider neon-box-pink">1x MULTIPLIER</div>
+            <div id="multiplierBar" class="w-24 h-2 bg-gray-900 rounded-full overflow-hidden border border-pink-500/50">
+              <div id="multiplierFill" class="h-full bg-pink-500 w-0 transition-all duration-150"></div>
+            </div>
+          </div>
+        </div>
+
+        <div class="flex flex-col items-center gap-1">
+          <div id="tierBadge" class="px-3 py-1 rounded-full bg-cyan-950/80 border border-cyan-400 text-cyan-300 font-bold text-[11px] tracking-widest uppercase">
+            TIER 1: SYNTHWAVE
+          </div>
+          <div id="shieldContainer" class="hidden flex flex-col items-center mt-1">
+            <span class="text-[10px] text-yellow-400 font-bold tracking-widest neon-text-yellow">HYPER SHIELD</span>
+            <div class="w-32 md:w-40 h-2 bg-gray-900 rounded-full overflow-hidden border border-yellow-400 mt-0.5">
+              <div id="shieldFill" class="h-full bg-yellow-400 w-full transition-all duration-100"></div>
+            </div>
+          </div>
+          <div class="text-[11px] text-gray-400 font-rajdhani font-bold mt-1">
+            SPEED: <span id="speedText" class="text-cyan-400 font-black text-sm">80</span> MPH
+          </div>
+        </div>
+
+        <div class="flex flex-col items-end gap-1">
+          <div class="text-[10px] text-pink-400 tracking-widest font-rajdhani font-bold">DISTANCE</div>
+          <div id="distanceText" class="text-2xl md:text-3xl font-bold neon-text-pink">0 m</div>
+          <div class="text-[10px] text-gray-400 mt-0.5">BEST: <span id="hudBestText" class="text-white font-bold">0</span></div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Pause Button -->
+    <button id="pauseBtn" class="hidden absolute top-14 right-4 z-20 p-2 rounded-xl bg-black/70 border border-cyan-500/60 text-cyan-400 hover:bg-cyan-500 hover:text-black transition">
+      <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 9v6m4-6v6m7-3a9 9 0 11-18 0 9 9 0 0118 0z"></path></svg>
+    </button>
+
+    <!-- Mobile Touch Controls -->
+    <div id="mobileControls" class="hidden md:hidden absolute bottom-4 inset-x-4 z-20 flex justify-between items-center pointer-events-auto">
+      <div class="flex gap-3">
+        <button id="btnLeft" class="w-16 h-16 rounded-full bg-cyan-950/80 border-2 border-cyan-400 text-cyan-300 flex items-center justify-center text-2xl font-bold active:bg-cyan-500 active:text-black shadow-[0_0_15px_rgba(0,240,255,0.4)]">◀</button>
+        <button id="btnRight" class="w-16 h-16 rounded-full bg-cyan-950/80 border-2 border-cyan-400 text-cyan-300 flex items-center justify-center text-2xl font-bold active:bg-cyan-500 active:text-black shadow-[0_0_15px_rgba(0,240,255,0.4)]">▶</button>
+      </div>
+      <button id="btnJump" class="w-20 h-20 rounded-full bg-pink-950/80 border-2 border-pink-500 text-pink-300 flex items-center justify-center text-xs font-black active:bg-pink-500 active:text-black uppercase shadow-[0_0_15px_rgba(255,0,127,0.4)]">BOOST / JUMP</button>
+    </div>
+
+    <!-- Start Menu -->
+    <div id="startMenu" class="absolute inset-0 z-30 flex flex-col items-center justify-center bg-black/80 p-6 backdrop-blur-md">
+      <div class="text-center max-w-lg">
+        <div class="text-xs uppercase tracking-[0.35em] text-cyan-400 mb-1 font-rajdhani font-bold">Cyberpunk 3D Vector Runner</div>
+        <h1 class="text-4xl md:text-6xl font-black italic tracking-wider text-transparent bg-clip-text bg-gradient-to-r from-cyan-400 via-pink-500 to-yellow-400 mb-2 animate-pulse-glow">
+          NEON PULSE
+        </h1>
+        <p class="text-xs md:text-sm text-gray-300 mb-5 font-rajdhani">Conquer 15 extreme levels! Reach Level 11 to trigger the Cyber Matrix visual transformation.</p>
+
+        <div class="neon-box-cyan rounded-xl p-3.5 mb-5 bg-black/60 flex justify-around items-center">
+          <div>
+            <div class="text-[10px] text-gray-400 tracking-widest">HIGHEST STAGE</div>
+            <div id="menuMaxLevel" class="text-2xl font-black text-yellow-400">LEVEL 1</div>
+          </div>
+          <div class="h-8 w-px bg-cyan-500/30"></div>
+          <div>
+            <div class="text-[10px] text-gray-400 tracking-widest">HIGH SCORE</div>
+            <div id="menuHighScore" class="text-2xl font-black text-cyan-300">0</div>
+          </div>
+          <div class="h-8 w-px bg-cyan-500/30"></div>
+          <div>
+            <div class="text-[10px] text-gray-400 tracking-widest">BEST DISTANCE</div>
+            <div id="menuBestDist" class="text-2xl font-black text-pink-400">0 m</div>
+          </div>
+        </div>
+
+        <div class="flex flex-col sm:flex-row gap-3 items-center justify-center mb-4">
+          <button id="startBtn" class="w-full sm:w-auto px-8 py-3.5 rounded-xl bg-gradient-to-r from-cyan-400 to-blue-600 font-black text-lg text-black hover:brightness-125 transition transform active:scale-95 shadow-[0_0_25px_rgba(0,240,255,0.7)]">
+            RACE HIGHWAY
+          </button>
+          <button id="leaderboardBtn" class="w-full sm:w-auto px-6 py-3.5 rounded-xl bg-gray-900 border border-pink-500/60 font-bold text-sm text-pink-300 hover:bg-pink-950 transition flex items-center justify-center gap-2">
+            🏆 LEADERBOARD
+          </button>
+        </div>
+
+        <button id="soundToggleBtn" class="px-4 py-2 rounded-lg bg-gray-950 border border-gray-800 text-xs hover:border-cyan-400 text-gray-400 flex items-center justify-center gap-2 mx-auto">
+          <span id="soundIcon">🔊</span> Audio: <span id="soundStateText" class="text-cyan-400 font-bold">ON</span>
+        </button>
+      </div>
+    </div>
+
+    <!-- Leaderboard Modal -->
+    <div id="leaderboardMenu" class="hidden absolute inset-0 z-40 flex flex-col items-center justify-center bg-black/90 p-6 backdrop-blur-md">
+      <div class="max-w-md w-full bg-black/80 neon-box-cyan rounded-2xl p-6 flex flex-col max-h-[85vh]">
+        <div class="flex justify-between items-center mb-4 border-b border-cyan-500/30 pb-3">
+          <h2 class="text-2xl font-black text-cyan-400 tracking-wider">LOCAL LEADERBOARD</h2>
+          <button id="closeLeaderboardBtn" class="text-gray-400 hover:text-white font-bold text-xl">✕</button>
+        </div>
+        <div class="overflow-y-auto flex-1 pr-1 mb-4 space-y-2 font-rajdhani" id="leaderboardList"></div>
+      </div>
+    </div>
+
+    <!-- Pause Modal -->
+    <div id="pauseMenu" class="hidden absolute inset-0 z-30 flex flex-col items-center justify-center bg-black/90 p-6 backdrop-blur-md">
+      <h2 class="text-3xl md:text-4xl font-black text-cyan-400 mb-6 neon-text-cyan">PULSE PAUSED</h2>
+      <div class="flex flex-col gap-4 w-64">
+        <button id="resumeBtn" class="py-3 bg-cyan-500 text-black font-bold rounded-xl hover:bg-cyan-400 transition shadow-[0_0_15px_rgba(0,240,255,0.5)]">RESUME</button>
+        <button id="restartPauseBtn" class="py-3 bg-pink-600 text-white font-bold rounded-xl hover:bg-pink-500 transition shadow-[0_0_15px_rgba(255,0,127,0.5)]">RESTART RUN</button>
+        <button id="quitBtn" class="py-3 bg-gray-900 text-gray-300 font-bold rounded-xl border border-gray-800 hover:bg-gray-800">MAIN MENU</button>
+      </div>
+    </div>
+
+    <!-- Game Over Modal -->
+    <div id="gameOverMenu" class="hidden absolute inset-0 z-30 flex flex-col items-center justify-center bg-black/90 p-6 backdrop-blur-md">
+      <div class="text-center max-w-md w-full">
+        <h2 class="text-4xl md:text-5xl font-black text-pink-500 mb-1 neon-text-pink">SYSTEM CRASH</h2>
+        <div class="text-xs text-gray-400 mb-4 tracking-widest">HIGHWAY DRIVE TERMINATED</div>
+
+        <div class="neon-box-pink bg-black/80 rounded-xl p-4 mb-4 space-y-2.5 font-rajdhani text-left">
+          <div class="flex justify-between items-center border-b border-gray-800 pb-2">
+            <span class="text-gray-400 text-sm">REACHED LEVEL</span>
+            <span id="goLevel" class="text-2xl font-black text-yellow-400">LEVEL 1</span>
+          </div>
+          <div class="flex justify-between items-center border-b border-gray-800 pb-2">
+            <span class="text-gray-400 text-sm">FINAL SCORE</span>
+            <span id="goFinalScore" class="text-2xl font-bold text-cyan-400">0</span>
+          </div>
+          <div class="flex justify-between items-center border-b border-gray-800 pb-2">
+            <span class="text-gray-400 text-sm">MAX MULTIPLIER</span>
+            <span id="goMaxCombo" class="text-lg font-bold text-pink-400">1x</span>
+          </div>
+          <div class="flex justify-between items-center border-b border-gray-800 pb-2">
+            <span class="text-gray-400 text-sm">DISTANCE COVERED</span>
+            <span id="goDistance" class="text-lg font-bold text-white">0 m</span>
+          </div>
+          <div class="flex justify-between items-center">
+            <span class="text-gray-400 text-sm">ENERGY ORBS</span>
+            <span id="goOrbs" class="text-lg font-bold text-yellow-400">0</span>
+          </div>
+        </div>
+
+        <div id="nameInputBox" class="mb-4 flex gap-2">
+          <input type="text" id="playerNameInput" maxlength="12" placeholder="ENTER CALLSIGN" class="w-full px-3 py-2 bg-gray-950 border border-cyan-500/60 rounded-xl text-cyan-300 font-bold text-sm text-center uppercase focus:outline-none focus:border-cyan-400">
+          <button id="saveScoreBtn" class="px-4 py-2 bg-pink-600 font-bold text-xs rounded-xl hover:bg-pink-500 transition">SUBMIT</button>
+        </div>
+
+        <div id="newHighscoreBadge" class="hidden mb-4 p-2 rounded-lg bg-yellow-500/20 border border-yellow-400 text-yellow-300 font-bold text-xs text-center animate-pulse">
+          🏆 NEW PERSONAL HIGH SCORE!
+        </div>
+
+        <div class="flex flex-col gap-2.5">
+          <button id="retryBtn" class="py-3 px-4 bg-cyan-500 text-black font-bold rounded-xl hover:bg-cyan-400 transition shadow-[0_0_15px_rgba(0,240,255,0.5)]">RACE AGAIN</button>
+          <button id="goMenuBtn" class="py-2.5 bg-gray-950 text-gray-400 rounded-xl border border-gray-800 hover:text-white text-xs">MAIN MENU</button>
+        </div>
+      </div>
+    </div>
+
+  </div>
+
+  <script>
+    class SynthEngine {
+      constructor() {
+        this.ctx = null;
+        this.muted = false;
+        this.tempo = 120;
+        this.step = 0;
+        this.timer = null;
+        this.bassNotes = [65.41, 65.41, 77.78, 87.31, 65.41, 65.41, 98.00, 87.31];
+        this.leadArps = [261.63, 311.13, 392.00, 523.25, 392.00, 311.13];
+      }
+
+      init() {
+        if (!this.ctx) {
+          const AudioContext = window.AudioContext || window.webkitAudioContext;
+          this.ctx = new AudioContext();
+        }
+        if (this.ctx.state === 'suspended') {
+          this.ctx.resume();
+        }
+      }
+
+      setTempo(bpm) {
+        this.tempo = bpm;
+        if (this.timer) {
+          this.start();
+        }
+      }
+
+      start() {
+        this.init();
+        if (this.timer) clearInterval(this.timer);
+        const interval = (60 / this.tempo / 4) * 1000;
+        this.timer = setInterval(() => this.tick(), interval);
+      }
+
+      stop() {
+        if (this.timer) {
+          clearInterval(this.timer);
+          this.timer = null;
+        }
+      }
+
+      tick() {
+        if (this.muted || !this.ctx) return;
+        const now = this.ctx.currentTime;
+        
+        if (this.step % 2 === 0) {
+          const noteIndex = Math.floor(this.step / 4) % this.bassNotes.length;
+          this.playWarmBass(this.bassNotes[noteIndex], 0.18, 0.12, now);
+        }
+
+        if (this.step % 2 === 1) {
+          const arpIndex = (this.step) % this.leadArps.length;
+          this.playSoftSine(this.leadArps[arpIndex], 0.12, 0.04, now);
+        }
+
+        if (this.step % 4 === 0) this.playSoftKick(now);
+        if (this.step % 8 === 4) this.playSoftSnare(now);
+
+        this.step = (this.step + 1) % 64;
+      }
+
+      playWarmBass(freq, duration, vol, time) {
+        const osc = this.ctx.createOscillator();
+        const gain = this.ctx.createGain();
+        const filter = this.ctx.createBiquadFilter();
+
+        osc.type = 'triangle';
+        osc.frequency.setValueAtTime(freq, time);
+
+        filter.type = 'lowpass';
+        filter.frequency.setValueAtTime(450, time);
+        filter.frequency.exponentialRampToValueAtTime(120, time + duration);
+
+        gain.gain.setValueAtTime(0.0001, time);
+        gain.gain.linearRampToValueAtTime(vol, time + 0.01);
+        gain.gain.exponentialRampToValueAtTime(0.0001, time + duration);
+
+        osc.connect(filter);
+        filter.connect(gain);
+        gain.connect(this.ctx.destination);
+
+        osc.start(time);
+        osc.stop(time + duration);
+      }
+
+      playSoftSine(freq, duration, vol, time) {
+        const osc = this.ctx.createOscillator();
+        const gain = this.ctx.createGain();
+
+        osc.type = 'sine';
+        osc.frequency.setValueAtTime(freq, time);
+
+        gain.gain.setValueAtTime(0.0001, time);
+        gain.gain.linearRampToValueAtTime(vol, time + 0.01);
+        gain.gain.exponentialRampToValueAtTime(0.0001, time + duration);
+
+        osc.connect(gain);
+        gain.connect(this.ctx.destination);
+
+        osc.start(time);
+        osc.stop(time + duration);
+      }
+
+      playSoftKick(time) {
+        const osc = this.ctx.createOscillator();
+        const gain = this.ctx.createGain();
+        osc.type = 'sine';
+        osc.frequency.setValueAtTime(110, time);
+        osc.frequency.exponentialRampToValueAtTime(0.01, time + 0.12);
+        
+        gain.gain.setValueAtTime(0.0001, time);
+        gain.gain.linearRampToValueAtTime(0.25, time + 0.005);
+        gain.gain.exponentialRampToValueAtTime(0.0001, time + 0.12);
+
+        osc.connect(gain);
+        gain.connect(this.ctx.destination);
+        osc.start(time);
+        osc.stop(time + 0.12);
+      }
+
+      playSoftSnare(time) {
+        const osc = this.ctx.createOscillator();
+        const gain = this.ctx.createGain();
+        osc.type = 'triangle';
+        osc.frequency.setValueAtTime(180, time);
+        
+        gain.gain.setValueAtTime(0.0001, time);
+        gain.gain.linearRampToValueAtTime(0.1, time + 0.005);
+        gain.gain.exponentialRampToValueAtTime(0.0001, time + 0.08);
+
+        osc.connect(gain);
+        gain.connect(this.ctx.destination);
+        osc.start(time);
+        osc.stop(time + 0.08);
+      }
+
+      playCollectSFX() {
+        if (this.muted || !this.ctx) return;
+        const now = this.ctx.currentTime;
+        const chord = [523.25, 659.25, 783.99];
+        chord.forEach((freq, idx) => {
+          const osc = this.ctx.createOscillator();
+          const gain = this.ctx.createGain();
+          osc.type = 'sine';
+          osc.frequency.setValueAtTime(freq, now + idx * 0.02);
+          
+          gain.gain.setValueAtTime(0.0001, now + idx * 0.02);
+          gain.gain.linearRampToValueAtTime(0.08, now + idx * 0.02 + 0.01);
+          gain.gain.exponentialRampToValueAtTime(0.0001, now + idx * 0.02 + 0.2);
+
+          osc.connect(gain);
+          gain.connect(this.ctx.destination);
+          osc.start(now + idx * 0.02);
+          osc.stop(now + idx * 0.02 + 0.2);
+        });
+      }
+
+      playShiftSFX() {
+        if (this.muted || !this.ctx) return;
+        const now = this.ctx.currentTime;
+        const osc = this.ctx.createOscillator();
+        const gain = this.ctx.createGain();
+        osc.type = 'sine';
+        osc.frequency.setValueAtTime(320, now);
+        osc.frequency.exponentialRampToValueAtTime(580, now + 0.06);
+
+        gain.gain.setValueAtTime(0.0001, now);
+        gain.gain.linearRampToValueAtTime(0.08, now + 0.005);
+        gain.gain.exponentialRampToValueAtTime(0.0001, now + 0.06);
+
+        osc.connect(gain);
+        gain.connect(this.ctx.destination);
+        osc.start(now);
+        osc.stop(now + 0.06);
+      }
+
+      playCrashSFX() {
+        if (this.muted || !this.ctx) return;
+        const now = this.ctx.currentTime;
+        const osc = this.ctx.createOscillator();
+        const gain = this.ctx.createGain();
+        osc.type = 'triangle';
+        osc.frequency.setValueAtTime(180, now);
+        osc.frequency.exponentialRampToValueAtTime(30, now + 0.35);
+
+        gain.gain.setValueAtTime(0.0001, now);
+        gain.gain.linearRampToValueAtTime(0.3, now + 0.01);
+        gain.gain.exponentialRampToValueAtTime(0.0001, now + 0.35);
+
+        osc.connect(gain);
+        gain.connect(this.ctx.destination);
+        osc.start(now);
+        osc.stop(now + 0.35);
+      }
+
+      playLevelUpSFX() {
+        if (this.muted || !this.ctx) return;
+        const now = this.ctx.currentTime;
+        const notes = [440, 554.37, 659.25, 880];
+        notes.forEach((freq, idx) => {
+          const osc = this.ctx.createOscillator();
+          const gain = this.ctx.createGain();
+          osc.type = 'square';
+          osc.frequency.setValueAtTime(freq, now + idx * 0.06);
+
+          gain.gain.setValueAtTime(0.0001, now + idx * 0.06);
+          gain.gain.linearRampToValueAtTime(0.12, now + idx * 0.06 + 0.01);
+          gain.gain.exponentialRampToValueAtTime(0.0001, now + idx * 0.06 + 0.15);
+
+          osc.connect(gain);
+          gain.connect(this.ctx.destination);
+          osc.start(now + idx * 0.06);
+          osc.stop(now + idx * 0.06 + 0.15);
+        });
+      }
+    }
+
+    const synth = new SynthEngine();
+    const canvas = document.getElementById('gameCanvas');
+    const ctx = canvas.getContext('2d');
+
+    const startMenu = document.getElementById('startMenu');
+    const pauseMenu = document.getElementById('pauseMenu');
+    const gameOverMenu = document.getElementById('gameOverMenu');
+    const leaderboardMenu = document.getElementById('leaderboardMenu');
+    const hud = document.getElementById('hud');
+    const mobileControls = document.getElementById('mobileControls');
+
+    const scoreText = document.getElementById('scoreText');
+    const comboBadge = document.getElementById('comboBadge');
+    const multiplierFill = document.getElementById('multiplierFill');
+    const distanceText = document.getElementById('distanceText');
+    const speedText = document.getElementById('speedText');
+    const tierBadge = document.getElementById('tierBadge');
+    const hudBestText = document.getElementById('hudBestText');
+    const shieldContainer = document.getElementById('shieldContainer');
+    const shieldFill = document.getElementById('shieldFill');
+
+    const levelProgressBar = document.getElementById('levelProgressBar');
+    const hudLevelNum = document.getElementById('hudLevelNum');
+    const hudLevelDistText = document.getElementById('hudLevelDistText');
+    const levelUpBanner = document.getElementById('levelUpBanner');
+    const levelUpText = document.getElementById('levelUpText');
+    const levelUpSubtext = document.getElementById('levelUpSubtext');
+
+    const menuMaxLevel = document.getElementById('menuMaxLevel');
+    const menuHighScore = document.getElementById('menuHighScore');
+    const menuBestDist = document.getElementById('menuBestDist');
+
+    const STATE_MENU = 'menu';
+    const STATE_PLAYING = 'playing';
+    const STATE_PAUSED = 'paused';
+    const STATE_GAMEOVER = 'gameover';
+    let gameState = STATE_MENU;
+
+    let width, height;
+    function resizeCanvas() {
+      const container = document.getElementById('game-container');
+      width = canvas.width = container.clientWidth;
+      height = canvas.height = container.clientHeight;
+    }
+    window.addEventListener('resize', resizeCanvas);
+    resizeCanvas();
+
+    let highScore = parseInt(localStorage.getItem('neon_pulse_highscore') || '0');
+    let bestDistance = parseInt(localStorage.getItem('neon_pulse_bestdist') || '0');
+    let maxUnlockedLevel = parseInt(localStorage.getItem('neon_pulse_maxlevel') || '1');
+
+    const levelDistances = [
+      0, 300, 700, 1200, 1800, 2500, 3300, 4200, 5200, 6300, 7500, 8800, 10200, 11700, 13300, 15000
+    ];
+    let currentLevel = 1;
+
+    function renderLeaderboard() {
+      const listContainer = document.getElementById('leaderboardList');
+      listContainer.innerHTML = '';
+      const localLeaderboard = JSON.parse(localStorage.getItem('neon_pulse_leaderboard') || '[]');
+      localLeaderboard.sort((a, b) => b.score - a.score);
+      const topList = localLeaderboard.slice(0, 10);
+
+      if (topList.length === 0) {
+        listContainer.innerHTML = '<div class="text-center text-gray-500 py-4">No scores recorded yet. Play a run!</div>';
+        return;
+      }
+
+      topList.forEach((entry, idx) => {
+        const item = document.createElement('div');
+        item.className = `flex justify-between items-center p-2.5 rounded-lg border ${idx === 0 ? 'bg-yellow-500/10 border-yellow-400/80 text-yellow-300' : 'bg-gray-950 border-gray-800 text-gray-300'}`;
+        item.innerHTML = `
+          <div class="flex items-center gap-3">
+            <span class="font-black w-6 text-center ${idx < 3 ? 'text-pink-400' : 'text-gray-500'}">#${idx + 1}</span>
+            <span class="font-bold tracking-wider uppercase">${entry.name}</span>
+          </div>
+          <span class="font-black text-cyan-400">${entry.score.toLocaleString()}</span>
+        `;
+        listContainer.appendChild(item);
+      });
+    }
+
+    function updateScoreDisplays() {
+      menuMaxLevel.textContent = `LEVEL ${maxUnlockedLevel}`;
+      menuHighScore.textContent = highScore.toLocaleString();
+      menuBestDist.textContent = `${bestDistance.toLocaleString()} m`;
+      hudBestText.textContent = highScore.toLocaleString();
+    }
+    updateScoreDisplays();
+
+    const player = { lane: 1, x: 0, targetX: 0, jumpY: 0, isJumping: false, jumpVelocity: 0, rollAngle: 0, shieldTime: 0 };
+    const camera = { shakeTime: 0, shakeIntensity: 0, pitchOffset: 0 };
+
+    let score = 0, distance = 0, speed = 10, comboMultiplier = 1, comboProgress = 0, maxCombo = 1, orbsCollected = 0, currentTier = 1;
+    let roadOffset = 0, obstacles = [], collectibles = [], particles = [], starfield = [], spawnTimer = 0;
+    const laneWidths = [-200, 0, 200];
+
+    function initStarfield() {
+      starfield = [];
+      for (let i = 0; i < 150; i++) {
+        starfield.push({ x: (Math.random() - 0.5) * width * 2.5, y: Math.random() * (height * 0.42), size: Math.random() * 2 + 0.5, alpha: Math.random() });
+      }
+    }
+    initStarfield();
+
+    function project3D(x, y, z) {
+      const fov = 320, cameraY = -140 + camera.pitchOffset, cameraZ = -220, horizonY = height * 0.42, scale = fov / (fov + z - cameraZ);
+      return { x: width / 2 + x * scale, y: horizonY + (y - cameraY) * scale, scale: scale };
+    }
+
+    function startGame() {
+      score = 0; distance = 0; speed = 12; comboMultiplier = 1; comboProgress = 0; maxCombo = 1; orbsCollected = 0; currentTier = 1; currentLevel = 1;
+      obstacles = []; collectibles = []; particles = [];
+      player.lane = 1; player.x = 0; player.targetX = 0; player.jumpY = 0; player.isJumping = false; player.shieldTime = 0;
+      gameState = STATE_PLAYING;
+
+      startMenu.classList.add('hidden'); pauseMenu.classList.add('hidden'); gameOverMenu.classList.add('hidden'); leaderboardMenu.classList.add('hidden');
+      hud.classList.remove('hidden'); document.getElementById('pauseBtn').classList.remove('hidden');
+      if ('ontouchstart' in window || navigator.maxTouchPoints > 0) mobileControls.classList.remove('hidden');
+
+      synth.setTempo(120);
+      synth.start();
+    }
+
+    function spawnWave() {
+      const zSpawn = 1400, occupiedLanes = new Set(), safeLane = Math.floor(Math.random() * 3);
+      for (let l = 0; l < 3; l++) {
+        if (l !== safeLane) {
+          const spawnProb = currentTier === 1 ? 0.45 : currentTier === 2 ? 0.65 : 0.85;
+          if (Math.random() < spawnProb) {
+            occupiedLanes.add(l);
+            obstacles.push({ lane: l, z: zSpawn, type: Math.random() < 0.5 ? 'spike' : 'barrier', shifting: currentTier >= 2 && Math.random() < 0.35, shiftDir: Math.random() < 0.5 ? 1 : -1, shiftX: 0 });
+          }
+        }
+      }
+      const freeLanes = [0, 1, 2].filter(lane => !occupiedLanes.has(lane));
+      if (freeLanes.length > 0 && Math.random() < 0.7) {
+        const itemLane = freeLanes[Math.floor(Math.random() * freeLanes.length)];
+        if (!obstacles.some(obs => obs.lane === itemLane && Math.abs(obs.z - zSpawn) < 180)) {
+          collectibles.push({ lane: itemLane, z: zSpawn + 80, type: Math.random() < 0.88 ? 'orb' : 'shield', collected: false });
+        }
+      }
+    }
+
+    function moveLeft() { if (gameState === STATE_PLAYING && player.lane > 0) { player.lane--; player.rollAngle = -0.4; synth.playShiftSFX(); } }
+    function moveRight() { if (gameState === STATE_PLAYING && player.lane < 2) { player.lane++; player.rollAngle = 0.4; synth.playShiftSFX(); } }
+    function jump() {
+      if (gameState === STATE_PLAYING && !player.isJumping) {
+        player.isJumping = true; player.jumpVelocity = 7.5; synth.playShiftSFX();
+      }
+    }
+
+    window.addEventListener('keydown', (e) => {
+      if (e.key === 'ArrowLeft' || e.key === 'a' || e.key === 'A') moveLeft();
+      if (e.key === 'ArrowRight' || e.key === 'd' || e.key === 'D') moveRight();
+      if (e.key === 'ArrowUp' || e.key === 'w' || e.key === 'W' || e.key === ' ') jump();
+      if (e.key === 'p' || e.key === 'P' || e.key === 'Escape') togglePause();
+    });
+
+    let touchStartX = 0, touchStartY = 0;
+    canvas.addEventListener('touchstart', (e) => { touchStartX = e.touches[0].clientX; touchStartY = e.touches[0].clientY; });
+    canvas.addEventListener('touchend', (e) => {
+      const deltaX = e.changedTouches[0].clientX - touchStartX, deltaY = e.changedTouches[0].clientY - touchStartY;
+      if (Math.abs(deltaY) > 40 && deltaY < 0) jump();
+      else if (Math.abs(deltaX) > 30) { if (deltaX < 0) moveLeft(); else moveRight(); }
+      else { if (e.changedTouches[0].clientX < width / 2) moveLeft(); else moveRight(); }
+    });
+
+    document.getElementById('btnLeft').addEventListener('click', moveLeft);
+    document.getElementById('btnRight').addEventListener('click', moveRight);
+    document.getElementById('btnJump').addEventListener('click', jump);
+
+    function togglePause() {
+      if (gameState === STATE_PLAYING) { gameState = STATE_PAUSED; pauseMenu.classList.remove('hidden'); synth.stop(); }
+      else if (gameState === STATE_PAUSED) { gameState = STATE_PLAYING; pauseMenu.classList.add('hidden'); synth.start(); }
+    }
+
+    document.getElementById('pauseBtn').addEventListener('click', togglePause);
+    document.getElementById('resumeBtn').addEventListener('click', togglePause);
+    document.getElementById('restartPauseBtn').addEventListener('click', () => startGame());
+    document.getElementById('quitBtn').addEventListener('click', () => {
+      gameState = STATE_MENU; pauseMenu.classList.add('hidden'); hud.classList.add('hidden');
+      document.getElementById('pauseBtn').classList.add('hidden'); mobileControls.classList.add('hidden'); startMenu.classList.remove('hidden'); synth.stop();
+    });
+
+    document.getElementById('startBtn').addEventListener('click', () => { synth.init(); startGame(); });
+    document.getElementById('leaderboardBtn').addEventListener('click', () => { renderLeaderboard(); leaderboardMenu.classList.remove('hidden'); });
+    document.getElementById('closeLeaderboardBtn').addEventListener('click', () => leaderboardMenu.classList.add('hidden'));
+
+    const soundToggleBtn = document.getElementById('soundToggleBtn'), soundStateText = document.getElementById('soundStateText'), soundIcon = document.getElementById('soundIcon');
+    soundToggleBtn.addEventListener('click', () => {
+      synth.muted = !synth.muted;
+      if (synth.muted) { soundStateText.textContent = 'OFF'; soundStateText.className = 'text-red-500 font-bold'; soundIcon.textContent = 'MUTE'; }
+      else { soundStateText.textContent = 'ON'; soundStateText.className = 'text-cyan-400 font-bold'; soundIcon.textContent = '🔊'; synth.init(); }
+    });
+
+    function showLevelUpBanner(lvl) {
+      levelUpBanner.classList.remove('hidden');
+      const isMatrix = lvl >= 11;
+      levelUpText.textContent = lvl === 11 ? 'MATRIX SHIFT!' : `LEVEL ${lvl} REACHED!`;
+      levelUpSubtext.textContent = isMatrix ? 'CYBER MATRIX REALITY UNLOCKED' : `ENTERING STAGE SECTOR ${lvl}`;
+      synth.playLevelUpSFX();
+      setTimeout(() => levelUpBanner.classList.add('hidden'), 1800);
+    }
+
+    function triggerGameOver() {
+      gameState = STATE_GAMEOVER; synth.playCrashSFX(); synth.stop();
+      if (currentLevel > maxUnlockedLevel) { maxUnlockedLevel = currentLevel; localStorage.setItem('neon_pulse_maxlevel', maxUnlockedLevel); }
+      let isNewHigh = false;
+      if (score > highScore) { highScore = score; localStorage.setItem('neon_pulse_highscore', highScore); isNewHigh = true; }
+      if (distance > bestDistance) { bestDistance = Math.floor(distance); localStorage.setItem('neon_pulse_bestdist', bestDistance); }
+      updateScoreDisplays();
+
+      document.getElementById('goLevel').textContent = `LEVEL ${currentLevel}`;
+      document.getElementById('goFinalScore').textContent = score.toLocaleString();
+      document.getElementById('goMaxCombo').textContent = `${maxCombo}x`;
+      document.getElementById('goDistance').textContent = `${Math.floor(distance)} m`;
+      document.getElementById('goOrbs').textContent = orbsCollected;
+
+      if (isNewHigh) document.getElementById('newHighscoreBadge').classList.remove('hidden');
+      else document.getElementById('newHighscoreBadge').classList.add('hidden');
+
+      gameOverMenu.classList.remove('hidden'); hud.classList.add('hidden'); document.getElementById('pauseBtn').classList.add('hidden'); mobileControls.classList.add('hidden');
+    }
+
+    document.getElementById('saveScoreBtn').addEventListener('click', () => {
+      const name = document.getElementById('playerNameInput').value.trim().toUpperCase() || 'RUNNER';
+      const localLeaderboard = JSON.parse(localStorage.getItem('neon_pulse_leaderboard') || '[]');
+      localLeaderboard.push({ name: name, score: score });
+      localStorage.setItem('neon_pulse_leaderboard', JSON.stringify(localLeaderboard));
+      document.getElementById('saveScoreBtn').textContent = 'SAVED!';
+      document.getElementById('saveScoreBtn').disabled = true;
+    });
+
+    document.getElementById('retryBtn').addEventListener('click', () => startGame());
+    document.getElementById('goMenuBtn').addEventListener('click', () => { gameState = STATE_MENU; gameOverMenu.classList.add('hidden'); startMenu.classList.remove('hidden'); });
+
+    function createExplosion(x, y, color) {
+      for (let i = 0; i < 28; i++) {
+        particles.push({ x: x, y: y, vx: (Math.random() - 0.5) * 10, vy: (Math.random() - 0.5) * 10, size: Math.random() * 5 + 2, color: color, life: 1.0 });
+      }
+    }
+
+    let lastTime = performance.now();
+    function update(dt) {
+      if (gameState !== STATE_PLAYING) return;
+
+      speed += dt * 0.25; distance += speed * dt * 2.5; roadOffset = (roadOffset + speed * dt * 50) % 80;
+
+      if (currentLevel < 15 && distance >= levelDistances[currentLevel]) {
+        currentLevel++; showLevelUpBanner(currentLevel); synth.setTempo(120 + (currentLevel * 3));
+      }
+
+      if (currentLevel >= 11) {
+        currentTier = 3;
+        tierBadge.textContent = `LEVEL ${currentLevel}: MATRIX MODE`;
+        tierBadge.className = "px-3 py-1 rounded-full bg-emerald-950/80 border border-emerald-400 text-emerald-300 font-bold text-[11px] tracking-widest uppercase animate-pulse";
+      } else if (speed > 18) {
+        currentTier = 2;
+        tierBadge.textContent = `LEVEL ${currentLevel}: OVERDRIVE`;
+        tierBadge.className = "px-3 py-1 rounded-full bg-pink-950/80 border border-pink-500 text-pink-300 font-bold text-[11px] tracking-widest uppercase";
+      } else {
+        currentTier = 1;
+        tierBadge.textContent = `LEVEL ${currentLevel}: SYNTHWAVE`;
+        tierBadge.className = "px-3 py-1 rounded-full bg-cyan-950/80 border border-cyan-400 text-cyan-300 font-bold text-[11px] tracking-widest uppercase";
+      }
+
+      hudLevelNum.textContent = currentLevel;
+      const prevTarget = levelDistances[currentLevel - 1], nextTarget = levelDistances[currentLevel] || (prevTarget + 2000);
+      levelProgressBar.style.width = `${Math.min(100, Math.max(0, ((distance - prevTarget) / (nextTarget - prevTarget)) * 100))}%`;
+      hudLevelDistText.textContent = `${Math.floor(distance)} / ${nextTarget} m`;
+
+      if (player.shieldTime > 0) {
+        player.shieldTime -= dt; shieldContainer.classList.remove('hidden');
+        shieldFill.style.width = `${(player.shieldTime / 5) * 100}%`;
+      } else { shieldContainer.classList.add('hidden'); }
+
+      player.targetX = laneWidths[player.lane]; player.x += (player.targetX - player.x) * 14 * dt; player.rollAngle *= 0.88;
+
+      if (player.isJumping) {
+        player.jumpY += player.jumpVelocity; player.jumpVelocity -= 28 * dt;
+        if (player.jumpY <= 0) { player.jumpY = 0; player.isJumping = false; }
+      }
+
+      spawnTimer += dt * (speed / 9);
+      if (spawnTimer > 1.1) { spawnWave(); spawnTimer = 0; }
+
+      for (let i = collectibles.length - 1; i >= 0; i--) {
+        const item = collectibles[i]; item.z -= speed * dt * 110;
+        if (item.z < 60 && item.z > -20 && !item.collected) {
+          if (item.lane === player.lane && player.jumpY < 30) {
+            item.collected = true;
+            if (item.type === 'orb') {
+              synth.playCollectSFX(); score += 150 * comboMultiplier; orbsCollected++; comboProgress++;
+              if (comboProgress >= 4 && comboMultiplier < 16) { comboMultiplier *= 2; comboProgress = 0; if (comboMultiplier > maxCombo) maxCombo = comboMultiplier; }
+            } else { synth.playCollectSFX(); player.shieldTime = 5.0; }
+            const p3d = project3D(laneWidths[item.lane], -20, item.z);
+            createExplosion(p3d.x, p3d.y, currentLevel >= 11 ? '#39ff14' : (item.type === 'orb' ? '#00f0ff' : '#facc15'));
+          }
+        }
+        if (item.z < -100) collectibles.splice(i, 1);
+      }
+
+      for (let i = obstacles.length - 1; i >= 0; i--) {
+        const obs = obstacles[i]; obs.z -= speed * dt * 110;
+        if (obs.shifting) { obs.shiftX += obs.shiftDir * dt * 120; if (Math.abs(obs.shiftX) > 70) obs.shiftDir *= -1; }
+        if (obs.z < 55 && obs.z > -15) {
+          const obsX = laneWidths[obs.lane] + obs.shiftX;
+          if (Math.abs(player.x - obsX) < 65) {
+            if (!(obs.type === 'spike' && player.jumpY > 15)) {
+              if (player.shieldTime > 0) {
+                player.shieldTime = 0; camera.shakeTime = 0.3; camera.shakeIntensity = 12; synth.playCrashSFX();
+                const p3d = project3D(obsX, -20, obs.z);
+                createExplosion(p3d.x, p3d.y, currentLevel >= 11 ? '#39ff14' : '#ff0055');
+                obstacles.splice(i, 1); continue;
+              } else { comboMultiplier = 1; comboProgress = 0; triggerGameOver(); return; }
+            }
+          }
+        }
+        if (obs.z < -100) obstacles.splice(i, 1);
+      }
+
+      if (Math.random() < 0.6) {
+        const p3d = project3D(player.x, -15 - player.jumpY, 5);
+        particles.push({ x: p3d.x + (Math.random() - 0.5) * 10, y: p3d.y + 10, vx: (Math.random() - 0.5) * 2, vy: Math.random() * 4 + 2, size: Math.random() * 4 + 1, color: currentLevel >= 11 ? '#39ff14' : (player.shieldTime > 0 ? '#facc15' : '#00f0ff'), life: 0.5 });
+      }
+
+      for (let i = particles.length - 1; i >= 0; i--) {
+        const p = particles[i]; p.x += p.vx; p.y += p.vy; p.life -= dt * 2.5; if (p.life <= 0) particles.splice(i, 1);
+      }
+
+      scoreText.textContent = score.toString().padStart(6, '0');
+      distanceText.textContent = `${Math.floor(distance)} m`;
+      speedText.textContent = Math.floor(speed * 8);
+      comboBadge.textContent = `${comboMultiplier}x MULTIPLIER`;
+      multiplierFill.style.width = `${(comboProgress / 4) * 100}%`;
+    }
+
+    function draw3DCar(x, y, scale, rollAngle, isShielded) {
+      ctx.save(); ctx.translate(x, y); ctx.rotate(rollAngle);
+      const w = 45 * scale, h = 25 * scale, isMatrix = currentLevel >= 11;
+      ctx.beginPath(); ctx.moveTo(0, -h * 1.2); ctx.lineTo(w * 0.8, -h * 0.2); ctx.lineTo(w, h * 0.8); ctx.lineTo(w * 0.4, h * 0.6); ctx.lineTo(-w * 0.4, h * 0.6); ctx.lineTo(-w, h * 0.8); ctx.lineTo(-w * 0.8, -h * 0.2); ctx.closePath();
+      ctx.fillStyle = isMatrix ? '#011c08' : '#0a0518'; ctx.strokeStyle = isShielded ? '#facc15' : (isMatrix ? '#39ff14' : '#00f0ff'); ctx.lineWidth = 2.5 * scale; ctx.shadowBlur = 18; ctx.shadowColor = ctx.strokeStyle; ctx.fill(); ctx.stroke();
+      ctx.restore();
+    }
+
+    function render() {
+      ctx.save();
+      if (camera.shakeTime > 0) ctx.translate((Math.random() - 0.5) * camera.shakeIntensity, (Math.random() - 0.5) * camera.shakeIntensity);
+      ctx.clearRect(0, 0, width, height);
+
+      const horizonY = height * 0.42, isMatrix = currentLevel >= 11;
+      const sunGrad = ctx.createLinearGradient(0, horizonY - 130, 0, horizonY);
+      sunGrad.addColorStop(0, isMatrix ? '#39ff14' : '#ff007f'); sunGrad.addColorStop(0.5, isMatrix ? '#00aa55' : '#ff7700'); sunGrad.addColorStop(1, '#facc15');
+
+      ctx.beginPath(); ctx.arc(width / 2, horizonY, 95, Math.PI, 0, false); ctx.fillStyle = sunGrad; ctx.shadowBlur = 35; ctx.shadowColor = isMatrix ? '#39ff14' : '#ff007f'; ctx.fill();
+      
+      ctx.fillStyle = '#030108';
+      for (let i = 0; i < 7; i++) ctx.fillRect(width / 2 - 100, horizonY - 12 - (i * 11), 200, 3 + i * 0.7);
+
+      ctx.fillStyle = '#ffffff';
+      starfield.forEach(s => { ctx.globalAlpha = s.alpha; ctx.fillRect(s.x + width / 2, s.y, s.size, s.size); });
+      ctx.globalAlpha = 1.0;
+
+      const gridGrad = ctx.createLinearGradient(0, horizonY, 0, height);
+      gridGrad.addColorStop(0, isMatrix ? '#021808' : '#100022'); gridGrad.addColorStop(1, '#030108');
+      ctx.fillStyle = gridGrad; ctx.fillRect(0, horizonY, width, height - horizonY);
+
+      [-300, -100, 100, 300].forEach(xPos => {
+        const pFar = project3D(xPos, 0, 1400), pNear = project3D(xPos, 0, 0);
+        ctx.beginPath(); ctx.moveTo(pFar.x, pFar.y); ctx.lineTo(pNear.x, pNear.y);
+        ctx.strokeStyle = isMatrix ? 'rgba(57, 255, 20, 0.55)' : 'rgba(0, 240, 255, 0.5)'; ctx.lineWidth = 1.8; ctx.stroke();
+      });
+
+      for (let z = 0; z < 1400; z += 70) {
+        const actualZ = z - roadOffset; if (actualZ < 0) continue;
+        const pLeft = project3D(-300, 0, actualZ), pRight = project3D(300, 0, actualZ), alpha = Math.min(1, actualZ / 220);
+        ctx.strokeStyle = isMatrix ? `rgba(0, 255, 100, ${alpha * 0.75})` : `rgba(255, 0, 127, ${alpha * 0.75})`;
+        ctx.lineWidth = 1.2; ctx.beginPath(); ctx.moveTo(pLeft.x, pLeft.y); ctx.lineTo(pRight.x, pRight.y); ctx.stroke();
+      }
+
+      collectibles.forEach(item => {
+        if (item.collected) return;
+        const p3d = project3D(laneWidths[item.lane], -25, item.z);
+        ctx.beginPath(); ctx.arc(p3d.x, p3d.y, Math.max(3, 16 * p3d.scale), 0, Math.PI * 2);
+        ctx.fillStyle = isMatrix ? '#39ff14' : (item.type === 'orb' ? '#00f0ff' : '#facc15');
+        ctx.shadowBlur = 20; ctx.shadowColor = ctx.fillStyle; ctx.fill();
+      });
+
+      obstacles.forEach(obs => {
+        const p3d = project3D(laneWidths[obs.lane] + obs.shiftX, -25, obs.z), size = Math.max(5, 45 * p3d.scale);
+        ctx.save(); ctx.translate(p3d.x, p3d.y);
+        if (obs.type === 'spike') {
+          ctx.beginPath(); ctx.moveTo(0, -size * 1.2); ctx.lineTo(-size / 1.8, 0); ctx.lineTo(size / 1.8, 0); ctx.closePath();
+          ctx.fillStyle = isMatrix ? '#39ff14' : '#ff0055'; ctx.shadowBlur = 18; ctx.shadowColor = ctx.fillStyle; ctx.fill();
+        } else {
+          ctx.fillStyle = isMatrix ? 'rgba(0, 255, 85, 0.85)' : 'rgba(255, 0, 85, 0.85)';
+          ctx.strokeStyle = isMatrix ? '#39ff14' : '#ff0055'; ctx.lineWidth = 2;
+          ctx.fillRect(-size / 1.1, -size, size * 1.8, size); ctx.strokeRect(-size / 1.1, -size, size * 1.8, size);
+        }
+        ctx.restore();
+      });
+
+      const pPlayer = project3D(player.x, -20 - player.jumpY, 10);
+      draw3DCar(pPlayer.x, pPlayer.y, pPlayer.scale, player.rollAngle, player.shieldTime > 0);
+
+      particles.forEach(p => {
+        ctx.save(); ctx.globalAlpha = Math.max(0, p.life); ctx.fillStyle = p.color;
+        ctx.beginPath(); ctx.arc(p.x, p.y, p.size, 0, Math.PI * 2); ctx.fill(); ctx.restore();
+      });
+
+      ctx.restore();
+    }
+
+    function loop(now) {
+      const dt = Math.min((now - lastTime) / 1000, 0.1);
+      lastTime = now;
+      update(dt);
+      render();
+      requestAnimationFrame(loop);
+    }
+
+    window.addEventListener('DOMContentLoaded', () => {
+      console.log("Running Neon Pulse in clean standalone mode.");
+      requestAnimationFrame(loop);
+    });
+  </script>
+</body>
+</html>
