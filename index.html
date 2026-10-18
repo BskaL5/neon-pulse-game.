@@ -590,6 +590,7 @@
       score = 0; distance = 0; speed = 12; comboMultiplier = 1; comboProgress = 0; maxCombo = 1; orbsCollected = 0; currentTier = 1; currentLevel = 1;
       obstacles = []; collectibles = []; particles = [];
       player.lane = 1; player.x = 0; player.targetX = 0; player.jumpY = 0; player.isJumping = false; player.shieldTime = 0;
+      camera.shakeTime = 0; camera.shakeIntensity = 0; // تصفير الاهتزاز عند بدء لعبة جديدة
       gameState = STATE_PLAYING;
 
       startMenu.classList.add('hidden'); pauseMenu.classList.add('hidden'); gameOverMenu.classList.add('hidden'); leaderboardMenu.classList.add('hidden');
@@ -683,6 +684,7 @@
 
     function triggerGameOver() {
       gameState = STATE_GAMEOVER; synth.playCrashSFX(); synth.stop();
+      camera.shakeTime = 0; // إيقاف الاهتزاز عند الخسارة
       if (currentLevel > maxUnlockedLevel) { maxUnlockedLevel = currentLevel; localStorage.setItem('neon_pulse_maxlevel', maxUnlockedLevel); }
       let isNewHigh = false;
       if (score > highScore) { highScore = score; localStorage.setItem('neon_pulse_highscore', highScore); isNewHigh = true; }
@@ -722,6 +724,15 @@
     let lastTime = performance.now();
     function update(dt) {
       if (gameState !== STATE_PLAYING) return;
+
+      // تحديث وقت الاهتزاز لكي يتوقف تدريجياً
+      if (camera.shakeTime > 0) {
+        camera.shakeTime -= dt;
+        if (camera.shakeTime <= 0) {
+          camera.shakeTime = 0;
+          camera.shakeIntensity = 0;
+        }
+      }
 
       speed += dt * 0.25; distance += speed * dt * 2.5; roadOffset = (roadOffset + speed * dt * 50) % 80;
 
